@@ -29,7 +29,7 @@
             backdrop-filter: blur(8px);
             border: 1px solid rgba(244, 63, 94, 0.4);
             pointer-events: auto;
-            max-width: 340px;
+            max-width: 360px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
         h1 {
@@ -39,13 +39,13 @@
             letter-spacing: 0.5px;
         }
         p {
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             margin: 0 0 12px 0;
             color: #cbd5e1;
             line-height: 1.4;
         }
         .controls-list {
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             background: rgba(30, 41, 59, 0.7);
             padding: 10px;
             border-radius: 6px;
@@ -109,11 +109,11 @@
     <div id="canvas-container"></div>
     
     <div id="ui-overlay">
-        <h1>Solar System & Cockpit</h1>
-        <p>Pilot your cruiser with pointer lock mouse flight, camera switching, audio, moons, and time speeds!</p>
+        <h1>Advanced Solar System</h1>
+        <p>Explore with Asteroid Belts, Comet Comets, Comets, Moons, Pointer Lock Flight, and Audio SFX!</p>
         <div class="controls-list">
             <div><span class="key">W</span> <span class="key">S</span> : Thrust Forward / Reverse</div>
-            <div><span class="key">MOUSE</span> : Steer & Pitch Ship</div>
+            <div><span class="key">MOUSE</span> : Pointer Lock Flight Steering</div>
             <div><span class="key">C</span> : Toggle Camera (Chase / Cockpit)</div>
             <div><span class="key">SPACE</span> / <span class="key">SHIFT</span> : Ascend / Descend</div>
         </div>
@@ -122,7 +122,7 @@
             <input type="range" id="timeSpeed" min="0.1" max="5.0" step="0.1" value="1.0">
         </div>
         <div class="btn-row">
-            <button id="lock-btn" class="action-btn">Enable Mouse Look</button>
+            <button id="lock-btn" class="action-btn">Mouse Look</button>
             <button id="fullscreen-btn" class="action-btn">Fullscreen</button>
         </div>
         <div id="status-panel">System: Click canvas for Mouse Lock Flight</div>
@@ -140,7 +140,7 @@
         renderer.setPixelRatio(window.devicePixelRatio);
         container.appendChild(renderer.domElement);
 
-        // Audio Context (Web Audio API for engine hum & ambient space)
+        // Audio Context (Web Audio API)
         let audioCtx = null;
         let engineOsc = null;
         let engineGain = null;
@@ -149,14 +149,13 @@
             if (audioCtx) return;
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             
-            // Engine Thruster Oscillator
             engineOsc = audioCtx.createOscillator();
             engineOsc.type = 'sawtooth';
-            engineOsc.frequency.setValueAtTime(60, audioCtx.currentTime);
+            engineOsc.frequency.setValueAtTime(55, audioCtx.currentTime);
 
             const filter = audioCtx.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(300, audioCtx.currentTime);
+            filter.frequency.setValueAtTime(250, audioCtx.currentTime);
 
             engineGain = audioCtx.createGain();
             engineGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
@@ -175,9 +174,7 @@
 
         container.addEventListener('click', () => {
             initAudio();
-            if (!isPointerLocked) {
-                container.requestPointerLock();
-            }
+            if (!isPointerLocked) container.requestPointerLock();
         });
 
         document.getElementById('lock-btn').addEventListener('click', (e) => {
@@ -197,31 +194,28 @@
             const sensitivity = 0.003;
             shipYaw -= e.movementX * sensitivity;
             shipPitch -= e.movementY * sensitivity;
-            // Clamp pitch to avoid flipping upside down entirely
             shipPitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, shipPitch));
         });
 
-        // Fullscreen toggle logic
+        // Fullscreen toggle
         const fullscreenBtn = document.getElementById('fullscreen-btn');
         fullscreenBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.error(`Error attempting fullscreen: ${err.message}`);
-                });
+                document.documentElement.requestFullscreen().catch(err => console.error(err));
             } else {
                 if (document.exitFullscreen) document.exitFullscreen();
             }
         });
 
-        // Time multiplier state
+        // Time multiplier
         let timeMultiplier = 1.0;
         document.getElementById('timeSpeed').addEventListener('input', (e) => {
             timeMultiplier = parseFloat(e.target.value);
             document.getElementById('speedValue').innerText = timeMultiplier.toFixed(1);
         });
 
-        // Camera mode switch key 'C'
+        // Camera mode toggle 'C'
         window.addEventListener('keydown', (e) => {
             if (e.code === 'KeyC') {
                 cameraMode = (cameraMode === 'chase') ? 'cockpit' : 'chase';
@@ -230,13 +224,13 @@
 
         // Starfield background
         const starsGeometry = new THREE.BufferGeometry();
-        const starsCount = 2000;
+        const starsCount = 3000;
         const starPositions = new Float32Array(starsCount * 3);
         for(let i = 0; i < starsCount * 3; i++) {
-            starPositions[i] = (Math.random() - 0.5) * 3000;
+            starPositions[i] = (Math.random() - 0.5) * 4000;
         }
         starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-        const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 2 });
+        const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 2.5 });
         const starField = new THREE.Points(starsGeometry, starsMaterial);
         scene.add(starField);
 
@@ -244,21 +238,49 @@
         const ambientLight = new THREE.AmbientLight(0x222222);
         scene.add(ambientLight);
 
-        const sunLight = new THREE.PointLight(0xffffff, 2.5, 3000);
+        const sunLight = new THREE.PointLight(0xffffff, 3.0, 4000);
         sunLight.position.set(0, 0, 0);
         scene.add(sunLight);
 
-        // Sun
-        const sunGeo = new THREE.SphereGeometry(35, 32, 32);
+        // Sun & Corona
+        const sunGeo = new THREE.SphereGeometry(40, 32, 32);
         const sunMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
         const sun = new THREE.Mesh(sunGeo, sunMat);
         scene.add(sun);
 
-        // Sun Glow Effect
-        const sunGlowGeo = new THREE.SphereGeometry(38, 32, 32);
-        const sunGlowMat = new THREE.MeshBasicMaterial({ color: 0xff4500, transparent: true, opacity: 0.3 });
+        const sunGlowGeo = new THREE.SphereGeometry(45, 32, 32);
+        const sunGlowMat = new THREE.MeshBasicMaterial({ color: 0xff4500, transparent: true, opacity: 0.35 });
         const sunGlow = new THREE.Mesh(sunGlowGeo, sunGlowMat);
         scene.add(sunGlow);
+
+        // Asteroid Belt between Mars (220) and Jupiter (320)
+        const asteroidCount = 600;
+        const asteroidGeo = new THREE.BufferGeometry();
+        const asteroidPositions = new Float32Array(asteroidCount * 3);
+        const asteroidRadii = [];
+
+        for (let i = 0; i < asteroidCount; i++) {
+            const radius = 260 + (Math.random() - 0.5) * 30;
+            const angle = Math.random() * Math.PI * 2;
+            const y = (Math.random() - 0.5) * 10;
+            
+            asteroidPositions[i * 3] = Math.cos(angle) * radius;
+            asteroidPositions[i * 3 + 1] = y;
+            asteroidPositions[i * 3 + 2] = Math.sin(angle) * radius;
+            
+            asteroidRadii.push({ radius, angle, speed: 0.003 + Math.random() * 0.002, y });
+        }
+        asteroidGeo.setAttribute('position', new THREE.BufferAttribute(asteroidPositions, 3));
+        const asteroidMat = new THREE.PointsMaterial({ color: 0x888888, size: 1.8 });
+        const asteroidBelt = new THREE.Points(asteroidGeo, asteroidMat);
+        scene.add(asteroidBelt);
+
+        // Comet
+        const cometGeo = new THREE.SphereGeometry(1.5, 16, 16);
+        const cometMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+        const comet = new THREE.Mesh(cometGeo, cometMat);
+        scene.add(comet);
+        let cometAngle = 0;
 
         // Planets Data with Moons
         const planetsData = [
@@ -286,8 +308,8 @@
             orbitGroup.add(planetMesh);
 
             if (data.hasRings) {
-                const ringGeo = new THREE.RingGeometry(data.radius + 3, data.radius + 8, 32);
-                const ringMat = new THREE.MeshBasicMaterial({ color: 0xd4a373, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+                const ringGeo = new THREE.RingGeometry(data.radius + 3, data.radius + 9, 32);
+                const ringMat = new THREE.MeshBasicMaterial({ color: 0xd4a373, side: THREE.DoubleSide, transparent: true, opacity: 0.75 });
                 const ring = new THREE.Mesh(ringGeo, ringMat);
                 ring.rotation.x = Math.PI / 2;
                 planetMesh.add(ring);
@@ -328,7 +350,7 @@
         wings.position.set(0, 0, 0.5);
         shipGroup.add(wings);
 
-        shipGroup.position.set(0, 20, 220);
+        shipGroup.position.set(0, 25, 240);
         scene.add(shipGroup);
 
         // Keyboard Controls
@@ -378,33 +400,46 @@
                 }
             });
 
-            // Flight physics & orientation based on yaw and pitch
+            // Rotate Asteroid Belt
+            const positions = asteroidBelt.geometry.attributes.position.array;
+            for (let i = 0; i < asteroidCount; i++) {
+                const data = asteroidRadii[i];
+                data.angle += data.speed * effectiveDelta;
+                positions[i * 3] = Math.cos(data.angle) * data.radius;
+                positions[i * 3 + 2] = Math.sin(data.angle) * data.radius;
+            }
+            asteroidBelt.geometry.attributes.position.needsUpdate = true;
+
+            // Orbit Comet
+            cometAngle += 0.4 * effectiveDelta;
+            const cometDist = 500;
+            comet.position.set(Math.cos(cometAngle) * cometDist, 30, Math.sin(cometAngle) * cometDist * 0.5);
+
+            // Flight physics
             shipGroup.rotation.order = 'YXZ';
             shipGroup.rotation.y = shipYaw;
             shipGroup.rotation.x = shipPitch;
 
             const forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(shipGroup.quaternion);
             
-            const acceleration = 50 * delta;
+            const acceleration = 55 * delta;
             let isThrusting = false;
             if (keys.w) { shipGroup.position.addScaledVector(forwardDir, acceleration); isThrusting = true; }
             if (keys.s) { shipGroup.position.addScaledVector(forwardDir, -acceleration); isThrusting = true; }
-            if (keys.space) shipGroup.position.y += 25 * delta;
-            if (keys.shift) shipGroup.position.y -= 25 * delta;
+            if (keys.space) shipGroup.position.y += 28 * delta;
+            if (keys.shift) shipGroup.position.y -= 28 * delta;
 
-            // Audio gain adjustment
             if (engineGain) {
-                engineGain.gain.setTargetAtTime(isThrusting ? 0.25 : 0.02, audioCtx.currentTime, 0.1);
+                engineGain.gain.setTargetAtTime(isThrusting ? 0.3 : 0.02, audioCtx.currentTime, 0.1);
             }
 
-            // Camera positioning based on mode
+            // Camera follow
             if (cameraMode === 'chase') {
                 const camOffset = new THREE.Vector3(0, 5, 18).applyQuaternion(shipGroup.quaternion);
                 const targetCamPos = shipGroup.position.clone().add(camOffset);
                 camera.position.lerp(targetCamPos, 0.15);
                 camera.quaternion.slerp(shipGroup.quaternion, 0.15);
             } else {
-                // Cockpit POV
                 camera.position.copy(shipGroup.position).add(new THREE.Vector3(0, 0.8, -0.5));
                 camera.quaternion.slerp(shipGroup.quaternion, 0.2);
             }
