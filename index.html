@@ -251,7 +251,7 @@
             camera.position.lerp(targetCamPos, 0.1);
             
             const lookTarget = shipGroup.position.clone().add(new THREE.Vector3(0, 1, 0));
-            camera.lookAt(lookTarget);
+            camera.lookAlt ? camera.lookAlt(lookTarget) : camera.lookAt(lookTarget);
 
             renderer.render(scene, camera);
         }
