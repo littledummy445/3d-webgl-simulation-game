@@ -68,6 +68,18 @@
             color: #38bdf8;
             font-weight: bold;
         }
+        .control-group {
+            margin-top: 10px;
+            font-size: 0.8rem;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 4px;
+            color: #f43f5e;
+        }
+        .control-group input[type="range"] {
+            width: 100%;
+        }
     </style>
     <!-- Three.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -76,12 +88,16 @@
     <div id="canvas-container"></div>
     
     <div id="ui-overlay">
-        <h1>Solar System Explorer</h1>
-        <p>Pilot your exploration cruiser through a 3D procedural solar system with orbiting planets and an emissive sun.</p>
+        <h1>Solar System & Moons</h1>
+        <p>Pilot your cruiser with procedural moons orbiting planets and adjustable time speed!</p>
         <div class="controls-list">
             <div><span class="key">W</span> <span class="key">S</span> : Thrust Forward / Reverse</div>
             <div><span class="key">A</span> <span class="key">D</span> : Steer Left / Right</div>
             <div><span class="key">SPACE</span> / <span class="key">SHIFT</span> : Ascend / Descend</div>
+        </div>
+        <div class="control-group">
+            <label for="timeSpeed">Time Multiplier: <span id="speedValue">1.0</span>x</label>
+            <input type="range" id="timeSpeed" min="0.1" max="5.0" step="0.1" value="1.0">
         </div>
         <div id="status-panel">System: Deep Space Orbit Stable</div>
     </div>
@@ -97,6 +113,13 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         container.appendChild(renderer.domElement);
+
+        // Time multiplier state
+        let timeMultiplier = 1.0;
+        document.getElementById('timeSpeed').addEventListener('input', (e) => {
+            timeMultiplier = parseFloat(e.target.value);
+            document.getElementById('speedValue').innerText = timeMultiplier.toFixed(1);
+        });
 
         // Starfield background
         const starsGeometry = new THREE.BufferGeometry();
@@ -130,16 +153,16 @@
         const sunGlow = new THREE.Mesh(sunGlowGeo, sunGlowMat);
         scene.add(sunGlow);
 
-        // Planets Data (distance from sun, radius, speed, color, mesh array)
+        // Planets Data with Moons
         const planetsData = [
-            { name: "Mercury", distance: 70, radius: 3, speed: 0.02, color: 0x888888 },
-            { name: "Venus", distance: 110, radius: 5.5, speed: 0.015, color: 0xe3bb76 },
-            { name: "Earth", distance: 160, radius: 6, speed: 0.01, color: 0x2266ff, hasClouds: true },
-            { name: "Mars", distance: 220, radius: 4, speed: 0.008, color: 0xc1440e },
-            { name: "Jupiter", distance: 320, radius: 14, speed: 0.005, color: 0xd4a373 },
-            { name: "Saturn", distance: 430, radius: 10, speed: 0.0035, color: 0xf4e2bb, hasRings: true },
-            { name: "Uranus", distance: 540, radius: 7, speed: 0.002, color: 0x73d4d4 },
-            { name: "Neptune", distance: 640, radius: 7, speed: 0.0015, color: 0x3b82f6 }
+            { name: "Mercury", distance: 70, radius: 3, speed: 0.02, color: 0x888888, moons: 0 },
+            { name: "Venus", distance: 110, radius: 5.5, speed: 0.015, color: 0xe3bb76, moons: 0 },
+            { name: "Earth", distance: 160, radius: 6, speed: 0.01, color: 0x2266ff, moons: 1, moonDist: 10, moonRadius: 1.2, moonSpeed: 0.05 },
+            { name: "Mars", distance: 220, radius: 4, speed: 0.008, color: 0xc1440e, moons: 2, moonDist: 7, moonRadius: 0.8, moonSpeed: 0.07 },
+            { name: "Jupiter", distance: 320, radius: 14, speed: 0.005, color: 0xd4a373, moons: 2, moonDist: 22, moonRadius: 2.0, moonSpeed: 0.04 },
+            { name: "Saturn", distance: 430, radius: 10, speed: 0.0035, color: 0xf4e2bb, hasRings: true, moons: 1, moonDist: 18, moonRadius: 1.5, moonSpeed: 0.03 },
+            { name: "Uranus", distance: 540, radius: 7, speed: 0.002, color: 0x73d4d4, moons: 1, moonDist: 12, moonRadius: 1.0, moonSpeed: 0.045 },
+            { name: "Neptune", distance: 640, radius: 7, speed: 0.0015, color: 0x3b82f6, moons: 1, moonDist: 13, moonRadius: 1.1, moonSpeed: 0.035 }
         ];
 
         const planets = [];
@@ -164,7 +187,26 @@
                 planetMesh.add(ring);
             }
 
-            planets.push({ group: orbitGroup, mesh: planetMesh, distance: data.distance, speed: data.speed, angle: Math.random() * Math.PI * 2 });
+            // Moons
+            const moonsArr = [];
+            if (data.moons > 0) {
+                for (let m = 0; m < data.moons; m++) {
+                    const moonOrbit = new THREE.Group();
+                    planetMesh.add(moonOrbit);
+
+                    const moonGeo = new THREE.SphereGeometry(data.moonRadius, 16, 16);
+                    const moonMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.9 });
+                    const moonMesh = new THREE.Mesh(moonGeo, moonMat);
+                    
+                    const distOffset = data.moonDist + (m * 4);
+                    moonMesh.position.x = distOffset;
+                    moonOrbit.add(moonMesh);
+
+                    moonsArr.push({ group: moonOrbit, speed: data.moonSpeed * (m + 1), angle: Math.random() * Math.PI * 2 });
+                }
+            }
+
+            planets.push({ group: orbitGroup, mesh: planetMesh, distance: data.distance, speed: data.speed, angle: Math.random() * Math.PI * 2, moons: moonsArr });
         });
 
         // Spaceship (Player Cruiser)
@@ -184,11 +226,6 @@
 
         shipGroup.position.set(0, 20, 220);
         scene.add(shipGroup);
-
-        // Ship Flight Physics State
-        let shipVelocity = new THREE.Vector3(0, 0, 0);
-        let shipRotationY = 0;
-        let shipRotationX = 0;
 
         // Controls
         const keys = { w: false, s: false, a: false, d: false, space: false, shift: false };
@@ -222,12 +259,21 @@
             requestAnimationFrame(animate);
 
             const delta = clock.getDelta();
+            const effectiveDelta = delta * timeMultiplier;
 
-            // Rotate Planets around Sun
+            // Rotate Planets & Moons around Sun
             planets.forEach(planet => {
-                planet.angle += planet.speed * delta;
+                planet.angle += planet.speed * effectiveDelta;
                 planet.group.rotation.y = planet.angle;
-                planet.mesh.rotation.y += 0.5 * delta;
+                planet.mesh.rotation.y += 0.5 * effectiveDelta;
+
+                // Rotate moons
+                if (planet.moons && planet.moons.length > 0) {
+                    planet.moons.forEach(moon => {
+                        moon.angle += moon.speed * effectiveDelta;
+                        moon.group.rotation.y = moon.angle;
+                    });
+                }
             });
 
             // Spaceship Controls & Flight
@@ -237,7 +283,8 @@
 
             shipGroup.rotation.y = shipRotationY;
 
-            const forwardDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), shipRotationY);
+            let shipRotationY = shipGroup.rotation.y;
+            const forwardDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), shipGroup.rotation.y);
             
             const acceleration = 40 * delta;
             if (keys.w) shipGroup.position.addScaledVector(forwardDir, acceleration);
@@ -246,12 +293,12 @@
             if (keys.shift) shipGroup.position.y -= 20 * delta;
 
             // Smooth Camera Follow behind Spaceship
-            const camOffset = new THREE.Vector3(0, 5, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), shipRotationY);
+            const camOffset = new THREE.Vector3(0, 5, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), shipGroup.rotation.y);
             const targetCamPos = shipGroup.position.clone().add(camOffset);
             camera.position.lerp(targetCamPos, 0.1);
             
             const lookTarget = shipGroup.position.clone().add(new THREE.Vector3(0, 1, 0));
-            camera.lookAlt ? camera.lookAlt(lookTarget) : camera.lookAt(lookTarget);
+            camera.lookAt(lookTarget);
 
             renderer.render(scene, camera);
         }
