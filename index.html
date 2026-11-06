@@ -17,6 +17,7 @@
             width: 100vw;
             height: 100vh;
             display: block;
+            cursor: pointer;
         }
         #ui-overlay {
             position: absolute;
@@ -80,19 +81,24 @@
         .control-group input[type="range"] {
             width: 100%;
         }
-        #fullscreen-btn {
+        .btn-row {
+            display: flex;
+            gap: 8px;
             margin-top: 12px;
-            width: 100%;
+        }
+        .action-btn {
+            flex: 1;
             background: #f43f5e;
             color: white;
             border: none;
-            padding: 8px 12px;
+            padding: 8px 10px;
             border-radius: 6px;
             font-weight: bold;
             cursor: pointer;
             transition: background 0.2s;
+            font-size: 0.75rem;
         }
-        #fullscreen-btn:hover {
+        .action-btn:hover {
             background: #e11d48;
         }
     </style>
@@ -103,19 +109,23 @@
     <div id="canvas-container"></div>
     
     <div id="ui-overlay">
-        <h1>Solar System & Moons</h1>
-        <p>Pilot your cruiser with procedural moons orbiting planets and adjustable time speed!</p>
+        <h1>Solar System & Cockpit</h1>
+        <p>Pilot your cruiser with pointer lock mouse flight, camera switching, audio, moons, and time speeds!</p>
         <div class="controls-list">
             <div><span class="key">W</span> <span class="key">S</span> : Thrust Forward / Reverse</div>
-            <div><span class="key">A</span> <span class="key">D</span> : Steer Left / Right</div>
+            <div><span class="key">MOUSE</span> : Steer & Pitch Ship</div>
+            <div><span class="key">C</span> : Toggle Camera (Chase / Cockpit)</div>
             <div><span class="key">SPACE</span> / <span class="key">SHIFT</span> : Ascend / Descend</div>
         </div>
         <div class="control-group">
             <label for="timeSpeed">Time Multiplier: <span id="speedValue">1.0</span>x</label>
             <input type="range" id="timeSpeed" min="0.1" max="5.0" step="0.1" value="1.0">
         </div>
-        <button id="fullscreen-btn">Toggle Fullscreen</button>
-        <div id="status-panel">System: Deep Space Orbit Stable</div>
+        <div class="btn-row">
+            <button id="lock-btn" class="action-btn">Enable Mouse Look</button>
+            <button id="fullscreen-btn" class="action-btn">Fullscreen</button>
+        </div>
+        <div id="status-panel">System: Click canvas for Mouse Lock Flight</div>
     </div>
 
     <script>
@@ -130,17 +140,77 @@
         renderer.setPixelRatio(window.devicePixelRatio);
         container.appendChild(renderer.domElement);
 
+        // Audio Context (Web Audio API for engine hum & ambient space)
+        let audioCtx = null;
+        let engineOsc = null;
+        let engineGain = null;
+
+        function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Engine Thruster Oscillator
+            engineOsc = audioCtx.createOscillator();
+            engineOsc.type = 'sawtooth';
+            engineOsc.frequency.setValueAtTime(60, audioCtx.currentTime);
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(300, audioCtx.currentTime);
+
+            engineGain = audioCtx.createGain();
+            engineGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
+
+            engineOsc.connect(filter);
+            filter.connect(engineGain);
+            engineGain.connect(audioCtx.destination);
+            engineOsc.start();
+        }
+
+        // Pointer Lock & Mouse Look State
+        let isPointerLocked = false;
+        let shipPitch = 0;
+        let shipYaw = 0;
+        let cameraMode = 'chase'; // 'chase' or 'cockpit'
+
+        container.addEventListener('click', () => {
+            initAudio();
+            if (!isPointerLocked) {
+                container.requestPointerLock();
+            }
+        });
+
+        document.getElementById('lock-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            initAudio();
+            container.requestPointerLock();
+        });
+
+        document.addEventListener('pointerlockchange', () => {
+            isPointerLocked = (document.pointerLockElement === container);
+            document.getElementById('status-panel').innerText = isPointerLocked ? 
+                "System: Mouse Locked (Flight Active)" : "System: Click canvas to engage Flight Control";
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isPointerLocked) return;
+            const sensitivity = 0.003;
+            shipYaw -= e.movementX * sensitivity;
+            shipPitch -= e.movementY * sensitivity;
+            // Clamp pitch to avoid flipping upside down entirely
+            shipPitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, shipPitch));
+        });
+
         // Fullscreen toggle logic
         const fullscreenBtn = document.getElementById('fullscreen-btn');
-        fullscreenBtn.addEventListener('click', () => {
+        fullscreenBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
-                    console.error(`Error attempting to enable fullscreen: ${err.message}`);
+                    console.error(`Error attempting fullscreen: ${err.message}`);
                 });
             } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
+                if (document.exitFullscreen) document.exitFullscreen();
             }
         });
 
@@ -149,6 +219,13 @@
         document.getElementById('timeSpeed').addEventListener('input', (e) => {
             timeMultiplier = parseFloat(e.target.value);
             document.getElementById('speedValue').innerText = timeMultiplier.toFixed(1);
+        });
+
+        // Camera mode switch key 'C'
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyC') {
+                cameraMode = (cameraMode === 'chase') ? 'cockpit' : 'chase';
+            }
         });
 
         // Starfield background
@@ -208,7 +285,6 @@
             planetMesh.position.x = data.distance;
             orbitGroup.add(planetMesh);
 
-            // Saturn Rings
             if (data.hasRings) {
                 const ringGeo = new THREE.RingGeometry(data.radius + 3, data.radius + 8, 32);
                 const ringMat = new THREE.MeshBasicMaterial({ color: 0xd4a373, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
@@ -217,7 +293,6 @@
                 planetMesh.add(ring);
             }
 
-            // Moons
             const moonsArr = [];
             if (data.moons > 0) {
                 for (let m = 0; m < data.moons; m++) {
@@ -247,7 +322,6 @@
         const hull = new THREE.Mesh(hullGeo, hullMat);
         shipGroup.add(hull);
 
-        // Wings
         const wingGeo = new THREE.BoxGeometry(5, 0.1, 1.5);
         const wingMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.8 });
         const wings = new THREE.Mesh(wingGeo, wingMat);
@@ -257,10 +331,7 @@
         shipGroup.position.set(0, 20, 220);
         scene.add(shipGroup);
 
-        // Ship Flight Physics State
-        let shipRotationY = 0;
-
-        // Controls
+        // Keyboard Controls
         const keys = { w: false, s: false, a: false, d: false, space: false, shift: false };
         window.addEventListener('keydown', (e) => {
             if (e.code === 'KeyW') keys.w = true;
@@ -279,7 +350,6 @@
             if (e.code === 'ShiftLeft') keys.shift = false;
         });
 
-        // Window resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -294,13 +364,12 @@
             const delta = clock.getDelta();
             const effectiveDelta = delta * timeMultiplier;
 
-            // Rotate Planets & Moons around Sun
+            // Rotate Planets & Moons
             planets.forEach(planet => {
                 planet.angle += planet.speed * effectiveDelta;
                 planet.group.rotation.y = planet.angle;
                 planet.mesh.rotation.y += 0.5 * effectiveDelta;
 
-                // Rotate moons
                 if (planet.moons && planet.moons.length > 0) {
                     planet.moons.forEach(moon => {
                         moon.angle += moon.speed * effectiveDelta;
@@ -309,28 +378,36 @@
                 }
             });
 
-            // Spaceship Controls & Flight
-            const turnSpeed = 1.5 * delta;
-            if (keys.a) shipRotationY += turnSpeed;
-            if (keys.d) shipRotationY -= turnSpeed;
+            // Flight physics & orientation based on yaw and pitch
+            shipGroup.rotation.order = 'YXZ';
+            shipGroup.rotation.y = shipYaw;
+            shipGroup.rotation.x = shipPitch;
 
-            shipGroup.rotation.y = shipRotationY;
-
-            const forwardDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), shipRotationY);
+            const forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(shipGroup.quaternion);
             
-            const acceleration = 40 * delta;
-            if (keys.w) shipGroup.position.addScaledVector(forwardDir, acceleration);
-            if (keys.s) shipGroup.position.addScaledVector(forwardDir, -acceleration);
-            if (keys.space) shipGroup.position.y += 20 * delta;
-            if (keys.shift) shipGroup.position.y -= 20 * delta;
+            const acceleration = 50 * delta;
+            let isThrusting = false;
+            if (keys.w) { shipGroup.position.addScaledVector(forwardDir, acceleration); isThrusting = true; }
+            if (keys.s) { shipGroup.position.addScaledVector(forwardDir, -acceleration); isThrusting = true; }
+            if (keys.space) shipGroup.position.y += 25 * delta;
+            if (keys.shift) shipGroup.position.y -= 25 * delta;
 
-            // Smooth Camera Follow behind Spaceship
-            const camOffset = new THREE.Vector3(0, 5, 15).applyAxisAngle(new THREE.Vector3(0, 1, 0), shipRotationY);
-            const targetCamPos = shipGroup.position.clone().add(camOffset);
-            camera.position.lerp(targetCamPos, 0.1);
-            
-            const lookTarget = shipGroup.position.clone().add(new THREE.Vector3(0, 1, 0));
-            camera.lookAt(lookTarget);
+            // Audio gain adjustment
+            if (engineGain) {
+                engineGain.gain.setTargetAtTime(isThrusting ? 0.25 : 0.02, audioCtx.currentTime, 0.1);
+            }
+
+            // Camera positioning based on mode
+            if (cameraMode === 'chase') {
+                const camOffset = new THREE.Vector3(0, 5, 18).applyQuaternion(shipGroup.quaternion);
+                const targetCamPos = shipGroup.position.clone().add(camOffset);
+                camera.position.lerp(targetCamPos, 0.15);
+                camera.quaternion.slerp(shipGroup.quaternion, 0.15);
+            } else {
+                // Cockpit POV
+                camera.position.copy(shipGroup.position).add(new THREE.Vector3(0, 0.8, -0.5));
+                camera.quaternion.slerp(shipGroup.quaternion, 0.2);
+            }
 
             renderer.render(scene, camera);
         }
